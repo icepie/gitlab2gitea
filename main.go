@@ -14,13 +14,14 @@ import (
 	"github.com/xanzy/go-gitlab"
 )
 
-const (
+var (
 	GiteaAdminUser = "icepie"
 )
 
 type arguments struct {
 	GitlabToken  string `arg:"--gitlabtoken,required" help:"token for GitLab API access"`
 	GitlabServer string `arg:"--gitlabserver" help:"GitLab server URL with a trailing slash"`
+	GiteaAdmin   string `arg:"--giteaadmin" help:"Gitea Admin User"`
 	// GitlabProject string `arg:"--gitlabproject,required" help:"GitLab project name, use namespace/name"`
 	GiteaToken  string `arg:"--giteatoken,required" help:"token for Gitea API access"`
 	GiteaServer string `arg:"--giteaserver,required" help:"Gitea server URL"`
@@ -57,6 +58,10 @@ func main() {
 	if err != nil {
 		fmt.Printf("Reading arguments failed: %s\n", err)
 		os.Exit(1)
+	}
+
+	if args.GiteaAdmin != "" {
+		GiteaAdminUser = args.GiteaAdmin
 	}
 
 	logger, err := createLogger()
@@ -266,10 +271,12 @@ func (m *migrator) migrateUsers() error {
 				continue
 			}
 
+			m.logger.Info("Migrating user", log.String("username", user.Username))
+
 			// 查找用户是否存在
 			_, _, TheErr := m.gitea.GetUserInfo(user.Username)
 			if TheErr == nil {
-				fmt.Printf("跳过user: %v 已经存在\n", user)
+				m.logger.Info("Skipping user, already exists", log.String("username", user.Username))
 
 				continue
 
@@ -337,10 +344,12 @@ func (m *migrator) migrateOrgs() error {
 
 			// fmt.Printf("org: %v\n", org)
 
+			m.logger.Info("Migrating org", log.String("org", path))
+
 			// 查找组织是否存在
 			_, _, TheErr := m.gitea.GetOrg(path)
 			if TheErr == nil {
-				fmt.Printf("跳过org: %v 已经存在\n", org)
+				m.logger.Info("Skipping org, already exists", log.String("org", path))
 				continue
 			}
 
@@ -405,13 +414,14 @@ func (m *migrator) migrateRepo() error {
 
 			repoOwner := strings.ReplaceAll(repo.Namespace.FullPath, "/", "_")
 
+			m.logger.Info("Migrating repo", log.String("repo", fmt.Sprintf("%s/%s", repoOwner, repo.Path)))
+
 			// isGitLabUser := m.IsGitLabUser(repoOwner)
 
 			// 判断仓库是否存在
 			_, _, TheErr := m.gitea.GetRepo(repoOwner, repo.Path)
 			if TheErr == nil {
-				fmt.Printf("跳过repo: %s/%s 已经存在\n", repoOwner, repo.Path)
-
+				m.logger.Info("Skipping repo, already exists", log.String("repo", fmt.Sprintf("%s/%s", repoOwner, repo.Path)))
 			} else {
 
 				// if isGitLabUser {
